@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Textures and Flight</title>
+    <script src="math.js"></script>
+    <script src="main.js"></script>
+    <script src="basic.js"></script>
+
+
+<!-- <script>// configures controls
+/**
+ * Modify this object to chose what options you want in the control pane.
+ * Top-level entries become top-section radio buttons.
+ * Nested entries become lower-section inputs of various types.
+ */
+var controlOptions =
+  {"terrain":
+    {   "label":"Required: Faulting-method terrain",
+
+        "options":
+        {
+            "resolution":{"type":"number","default":100,"label":"Grid size"},
+            "slices":{"type":"number","default":100,"label":"Fractures"},
+            "shiny":{"type":"checkbox","default":true,"label":"Shiny"},
+            "color_map" : {"type":"checkbox","default":true,"label":"Height-based color ramp"},
+            "cliff" : {"type":"checkbox","default":true,"label":"Rocky cliffs"}
+        }
+
+    }
+  }
+</script> -->
+
+
+<!-- The source code of a vertex shader directly in the HTML. The 'type=' command can have any value except "javascript" and just tells the browser not to try to run the code as javascript. -->
+<script id="vert" type="glsl">
+    #version 300 es
+
+    in vec4 position;
+    in vec3 normal;
+    out vec3 fnormal;
+    out float fheight;
+    out float fsteepness;
+
+    uniform mat4 p;
+    uniform mat4 m_1;
+    uniform mat4 m_2;
+    uniform mat4 v;
+
+    in vec2 aTexCoord;
+    out vec2 vTexCoord;
+      
+
+    void main() {
+        fheight = position.z;
+
+        gl_Position = p * v * m_1 * m_2 * position;
+        fnormal = mat3(m_1) * normal;
+        fsteepness = dot(fnormal, vec3(0, 0, 1));
+
+        vTexCoord = aTexCoord;
+        
+    }
+</script>
+    
+    
+<!-- The source code of a fragment shader. -->
+<script id="frag" type="glsl">
+    #version 300 es
+    precision highp float;
+
+    uniform vec3 lightdir;
+    uniform vec3 lightcolor;
+    uniform vec3 halfway;
+    uniform vec3 lightdir2;
+    uniform vec3 lightcolor2;
+    uniform vec3 halfway2;
+
+    uniform float min_height;
+    uniform float max_height;
+
+    out vec4 fragColor;
+    in vec3 fnormal;
+    in float fheight;
+    in float fsteepness;
+
+    uniform float fog;
+    uniform vec4 fog_color;
+
+    uniform sampler2D image;
+    uniform sampler2D aTextureIPlanToUse;
+    in vec2 vTexCoord;
+
+
+
+    void main() {
+        vec4 color = texture(image, vTexCoord);
+
+        vec3 n = normalize(fnormal);
+
+        float lambert = max(dot(lightdir, n), 0.0);
+        float lambert2 = max(dot(lightdir2, n), 0.0);
+
+        float blinn = pow(max(dot(halfway, n), 0.0), 200.0);
+        float blinn2 = pow(max(dot(halfway2, n), 0.0), 200.0);
+
+        float blinn_cliff = pow(max(dot(halfway, n), 0.0), 1000.0);
+        float blinn_cliff2 = pow(max(dot(halfway2, n), 0.0), 1000.0);
+        
+        
+        vec4 final_color = vec4(
+            color.rgb * (lightcolor * lambert + lightcolor2 * lambert2)
+            + (lightcolor*blinn + lightcolor2*blinn2)*1.0 ,
+            1);
+
+
+        
+        fragColor = (1.0 - fog) * (final_color)  + fog * (fog_color  *  pow(gl_FragCoord.z,2.0) + (1.0 - pow(gl_FragCoord.z,2.0)) * final_color); 
+
+    }
+</script>
+
+
+<script id="model_frag" type="glsl">
+    #version 300 es
+    precision highp float;
+
+    in vec3 fnormal;
+    out vec4 fragColor;
+
+
+    uniform vec3 lightdir;
+    uniform vec3 lightcolor;
+    uniform vec3 halfway;
+    uniform vec3 lightdir2;
+    uniform vec3 lightcolor2;
+    uniform vec3 halfway2;
+
+    uniform float fog;
+    uniform vec4 fog_color;
+
+
+    void main() {
+        vec4 color = vec4(1.0,0.0,0.0,1);
+
+        vec3 n = normalize(fnormal);
+
+        float lambert = max(dot(lightdir, n), 0.0);
+        float lambert2 = max(dot(lightdir2, n), 0.0);
+
+        float blinn = pow(max(dot(halfway, n), 0.0), 200.0);
+        float blinn2 = pow(max(dot(halfway2, n), 0.0), 200.0);
+
+        float blinn_cliff = pow(max(dot(halfway, n), 0.0), 1000.0);
+        float blinn_cliff2 = pow(max(dot(halfway2, n), 0.0), 1000.0);
+        
+        
+        vec4 final_color = vec4(
+            color.rgb * (lightcolor * lambert + lightcolor2 * lambert2)
+            + (lightcolor*blinn + lightcolor2*blinn2)*1.0 ,
+            1);
+
+        fragColor = (1.0 - fog) * (final_color)  + fog * (fog_color  *  pow(gl_FragCoord.z,2.0) + (1.0 - pow(gl_FragCoord.z,2.0)) * final_color); 
+
+    }
+
+
+</script>
+
+
+<script id="model_vert" type="glsl">
+    #version 300 es
+
+    in vec4 position;
+    in vec3 normal;
+    out vec3 fnormal;
+
+    uniform mat4 p;
+    uniform mat4 m_1;
+    uniform mat4 m_2;
+    uniform mat4 v;
+      
+    void main() {
+
+        gl_Position = p * v * m_1 * m_2 * position;
+        fnormal = mat3(m_1) * normal;
+    }
+
+</script>
+
+<!-- DO NOT MODIFY anything below this line -->
+<style>
+    body { margin: 0; border: none; padding: 0; display: flex; }
+    .controls {
+        width: min(50%, 20em); padding: 1em;
+        flex: 0 0 min(50%, 20em);
+    }
+    .controls label { display: block; }
+    .display {
+        flex-grow: 1; height: 100vh;
+        line-height: 0rem;
+    }
+</style>
+</head>
+<body>
+    <div class="display"><canvas width="500" height="500"></canvas></div>
+</body>
+</html>
